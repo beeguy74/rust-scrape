@@ -1,0 +1,12 @@
+#build a container from this dir, mount current dir as a volume and working dir
+#run a cargo install and then bash
+version: '3'
+services:
+  rust:
+    image: rust:1.70
+    volumes:
+      - .:/usr/src/myapp
+    working_dir: /usr/src/myapp
+    command: bash -c "cargo install --path . >  /dev/null && sleep infinity"
+
+
