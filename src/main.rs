@@ -67,12 +67,35 @@ fn parse_args() -> Args {
     args
 }
 
+fn url_links_finder(html: &str) -> Vec<String> {
+    // i need a regex to find all <a href> tags and extract the links
+    let re = Regex::new(r#"<a[^>]*?href="([^"]*?)"[^>]*?>"#).unwrap();
+    let mut res = Vec::new();
+    for cap in re.captures_iter(html) {
+        res.push(cap[1].to_string());
+    }
+    res
+}
+
+fn rec_download(html: &str, url: &str, dir_path: &str, iteration: i32) -> Result<(), Box<dyn std::error::Error>> {
+    if iteration == 0 {
+        return Ok(());
+    }
+    let links = url_links_finder(html);
+    for link in links {
+        println!("Downloading {}", link);
+    }
+    Ok(())
+}
+
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Args = parse_args();
     println!("url: {}, dir_path: {}, deep: {}", args.url, args.dir_path, args.deep);
-    let resp = reqwest::get(args.url).await?.text().await?;
+    let resp = reqwest::get(args.url.clone()).await?.text().await?;
 
+    rec_download(&resp, &args.url, &args.dir_path, args.deep);
     let jpgs: Vec<String> = url_extension_searcher(&resp, "jpg");
     let pngs: Vec<String> = url_extension_searcher(&resp, "png");
     let jpegs: Vec<String> = url_extension_searcher(&resp, "jpeg");
