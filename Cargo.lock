@@ -1009,16 +1009,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust-scrape"
-version = "0.1.0"
-dependencies = [
- "regex",
- "reqwest",
- "scraper",
- "tokio",
-]
-
-[[package]]
 name = "rustc-demangle"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1247,6 +1237,16 @@ checksum = "ce305eb0b4296696835b71df73eb912e0f1ffd2556a501fcede6e0c50349191c"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "spider"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "reqwest",
+ "scraper",
+ "tokio",
 ]
 
 [[package]]
