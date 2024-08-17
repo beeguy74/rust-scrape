@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for png in pngs {
         println!("{}", png);
-        download_to_file(&png, args.).await;
+        download_to_file(&png, &args.dir_path).await;
     }
     for jpg in jpgs {
         println!("{}", jpg);

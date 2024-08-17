@@ -11,4 +11,3 @@ attach:
 
 rm:
 	docker-compose down
-	docker container rm $(docker container ls -a -q)
