@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::io::copy;
 use std::env;
 
@@ -77,15 +78,31 @@ fn url_links_finder(html: &str) -> Vec<String> {
     res
 }
 
-fn rec_download(html: &str, url: &str, dir_path: &str, iteration: i32) -> Result<(), Box<dyn std::error::Error>> {
-    if iteration == 0 {
-        return Ok(());
+async fn download_print(files: Vec<String>, dir_path: &str) {
+    for file in files {
+        println!("{}", file);
+        download_to_file(&file, dir_path).await;
     }
-    let links = url_links_finder(html);
+}
+
+async fn rec_download(url: &str, dir_path: &str, iteration: i32) -> Box<dyn Future<Output = ()>> {
+    if iteration == 0 {
+        return Box::new(async {});
+    }
+    let full_resp = reqwest::get(url).await;
+    let resp = full_resp.unwrap().text().await.unwrap();
+
+    let links = url_links_finder(&resp);
+    download_print(url_extension_searcher(&resp, "jpg"), dir_path).await;
+    download_print(url_extension_searcher(&resp, "png"), dir_path).await;
+    download_print(url_extension_searcher(&resp, "jpeg"), dir_path).await;
+    download_print(url_extension_searcher(&resp, "gif"), dir_path).await;
+    download_print(url_extension_searcher(&resp, "bmp"), dir_path).await;
     for link in links {
         println!("Downloading {}", link);
+        rec_download(&link, dir_path, iteration - 1).await;
     }
-    Ok(())
+    return Box::new(async {});
 }
 
 
@@ -93,33 +110,11 @@ fn rec_download(html: &str, url: &str, dir_path: &str, iteration: i32) -> Result
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Args = parse_args();
     println!("url: {}, dir_path: {}, deep: {}", args.url, args.dir_path, args.deep);
-    let resp = reqwest::get(args.url.clone()).await?.text().await?;
 
-    rec_download(&resp, &args.url, &args.dir_path, args.deep);
-    let jpgs: Vec<String> = url_extension_searcher(&resp, "jpg");
-    let pngs: Vec<String> = url_extension_searcher(&resp, "png");
-    let jpegs: Vec<String> = url_extension_searcher(&resp, "jpeg");
-    let gifs: Vec<String> = url_extension_searcher(&resp, "gif");
-    let bmps: Vec<String> = url_extension_searcher(&resp, "bmp");
+    rec_download(&args.url, &args.dir_path, args.deep).await;
 
 
 
-    for png in pngs {
-        println!("{}", png);
-        download_to_file(&png, &args.dir_path).await;
-    }
-    for jpg in jpgs {
-        println!("{}", jpg);
-    }
-    for jpeg in jpegs {
-        println!("{}", jpeg);
-    }
-    for gif in gifs {
-        println!("{}", gif);
-    }
-    for bmp in bmps {
-        println!("{}", bmp);
-    }
 
     Ok(())
 }
