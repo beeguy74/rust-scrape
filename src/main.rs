@@ -1,5 +1,5 @@
 use std::{io::copy, mem};
-use reqwest;
+use reqwest::{self, blocking::Client};
 use regex::Regex;
 mod modules;
 
@@ -43,13 +43,13 @@ fn url_links_finder(html: &str) -> Vec<String> {
     }
 }
 
-fn rec_download(url: String, dir_path: String, iteration: i32) {
+fn rec_download(client: &Client ,url: String, dir_path: String, iteration: i32) {
     if iteration == 0 {
         return ;
     }
     let resp;
     {
-        let full_resp = reqwest::blocking::get(url.clone());
+        let full_resp = client.get(url.clone()).send();
         if full_resp.is_err() {
             println!("Failed to download {}", url.clone());
             return;
@@ -67,7 +67,7 @@ fn rec_download(url: String, dir_path: String, iteration: i32) {
     mem::drop(resp);
     for link in links {
         println!("{} Downloading {}", iteration, link);
-        rec_download(link.clone(), dir_path.clone(), iteration - 1);
+        rec_download(client, link.clone(), dir_path.clone(), iteration - 1);
     }
 }
 
@@ -75,9 +75,10 @@ fn rec_download(url: String, dir_path: String, iteration: i32) {
  fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = modules::args::Args::default();
     args.parse_args()?;
+    let client = reqwest::blocking::Client::new();
     println!("url: {}, dir_path: {}, deep: {}", args.url, args.dir_path, args.deep);
 
-    rec_download(args.url.clone(), args.dir_path.clone(), args.deep);
+    rec_download(&client, args.url.clone(), args.dir_path.clone(), args.deep);
 
     Ok(())
 }
