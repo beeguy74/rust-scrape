@@ -1,4 +1,4 @@
-use std::io::copy;
+use std::{io::copy, mem};
 use reqwest;
 use regex::Regex;
 mod modules;
@@ -39,7 +39,6 @@ fn url_links_finder(html: &str) -> Vec<String> {
 
  fn download_print(files: Vec<String>, dir_path: String) {
     for file in files {
-        println!("{}", file);
         download_to_file(&file, dir_path.clone());
     }
 }
@@ -48,23 +47,28 @@ fn rec_download(url: String, dir_path: String, iteration: i32) {
     if iteration == 0 {
         return ;
     }
+    let resp;
+    {
         let full_resp = reqwest::blocking::get(url.clone());
         if full_resp.is_err() {
             println!("Failed to download {}", url.clone());
             return;
         }
-        let resp = full_resp.unwrap().text().unwrap();
+        resp = full_resp.unwrap().text().unwrap();
+    }
 
-        let links = url_links_finder(&resp);
-        for link in links {
-            println!("Downloading {}", link);
-            rec_download(link.clone(), dir_path.clone(), iteration - 1);
-        }
-        download_print(url_extension_searcher(&resp, "jpg"), dir_path.clone());
-        download_print(url_extension_searcher(&resp, "png"), dir_path.clone());
-        download_print(url_extension_searcher(&resp, "jpeg"), dir_path.clone());
-        download_print(url_extension_searcher(&resp, "gif"), dir_path.clone());
-        download_print(url_extension_searcher(&resp, "bmp"), dir_path.clone());
+    download_print(url_extension_searcher(&resp, "jpg"), dir_path.clone());
+    download_print(url_extension_searcher(&resp, "png"), dir_path.clone());
+    download_print(url_extension_searcher(&resp, "jpeg"), dir_path.clone());
+    download_print(url_extension_searcher(&resp, "gif"), dir_path.clone());
+    download_print(url_extension_searcher(&resp, "bmp"), dir_path.clone());
+
+    let links = url_links_finder(&resp);
+    mem::drop(resp);
+    for link in links {
+        println!("{} Downloading {}", iteration, link);
+        rec_download(link.clone(), dir_path.clone(), iteration - 1);
+    }
 }
 
 

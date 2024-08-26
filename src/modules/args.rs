@@ -11,7 +11,7 @@ impl Args {
         Args {
             url: "https://www.osnews.com".to_string(),
             dir_path: "./data".to_string(),
-            deep: 5,
+            deep: 1,
         }
     }
 
