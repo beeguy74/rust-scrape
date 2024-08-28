@@ -1,10 +1,11 @@
 use std::{env, io::Read};
+use hex;
 
-fn open_file(file_path: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn open_file(file_path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let file = std::fs::File::open(file_path)?;
     let mut buf_reader = std::io::BufReader::new(file);
-    let mut content = String::new();
-    buf_reader.read_to_string(&mut content);
+    let mut content = Vec::new();
+    buf_reader.read_to_end(&mut content)?;
     Ok(content)
 }
 
@@ -16,7 +17,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let content = open_file(args.nth(1).unwrap().as_str())?;
     // print first line of file
-    println!("Content: {}", &content[0..content.find('\n').unwrap()]);
+    println!("Content: {:?}", &content[0..8]);
+    let hex_content = hex::encode(&content);
+    // Print the hexadecimal content
+    println!("Hex Content: {}", hex_content);
 
     Ok(())
 }
