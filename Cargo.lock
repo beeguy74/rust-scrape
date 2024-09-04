@@ -209,6 +209,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "endianness"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a436ddc6a16e6d54d8dcd33162f355c2e0d18ef63c2687bcc69423862a3db256"
+
+[[package]]
 name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1282,6 +1288,7 @@ name = "spider"
 version = "0.1.0"
 dependencies = [
  "async-recursion",
+ "endianness",
  "hex",
  "regex",
  "reqwest",

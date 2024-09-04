@@ -1,5 +1,6 @@
 use std::{env, io::Read, result};
 use hex;
+use endianness::{read_u32, ByteOrder::BigEndian};
 
 
 struct imageFile {
@@ -15,7 +16,37 @@ impl imageFile {
     fn set_content(&mut self, buf: &mut std::io::BufReader<std::fs::File>) {
         buf.read_to_end(&mut self.content);
     }
+
+    fn exract_png_metadata(&mut self){
+        let mut i = 8; // Skip the magic number
+        let mut buf: &mut [u8] = &mut [0; 4];
+        let mut chunk_length = 0;
+        let mut chunk_type: &[u8];
+        let mut chunk_data: &[u8];
+        let mut chunk_crc: &[u8];
+        println!("LEN of png: {}", self.len());
+        while i < self.len() {
+            buf = &mut self.content[i..i+4];
+            chunk_length = read_u32(buf, BigEndian).unwrap();
+            println!("chunk length: {}", chunk_length);
+            i += 4;
+            chunk_type = &self.content[i..i+4];
+            i += 4;
+            chunk_data = &self.content[i..i+chunk_length as usize];
+            i += chunk_length as usize;
+            chunk_crc = &self.content[i..i+4];
+            i += 4;
+            if chunk_type == b"teXt" {
+                println!("Found text chunk");
+                println!("Text: {}", String::from_utf8_lossy(chunk_data));
+            }
+            else {
+                println!("Chunk type: {}", String::from_utf8_lossy(chunk_type));
+            }
+        }
+    }
 }
+
 
 fn open_file(file_path: &str) -> Result<imageFile, Box<dyn std::error::Error>> {
     let file = std::fs::File::open(file_path)?;
@@ -28,6 +59,7 @@ fn open_file(file_path: &str) -> Result<imageFile, Box<dyn std::error::Error>> {
     Ok(result)
 }
 
+
 fn launcher(image: &mut imageFile) {
     let hex_content = hex::encode(&image.content);
     let magic_number = &hex_content[0..8];
@@ -36,6 +68,7 @@ fn launcher(image: &mut imageFile) {
         "png" => {
             if magic_number == "89504e47" {
                 println!("File is a PNG");
+                image.exract_png_metadata();
             } else {
                 println!("File is not a PNG");
             }
