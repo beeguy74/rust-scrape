@@ -36,7 +36,7 @@ impl imageFile {
             i += chunk_length as usize;
             chunk_crc = &self.content[i..i+4];
             i += 4;
-            if chunk_type == b"teXt" {
+            if chunk_type == b"tEXt" || chunk_type == b"zTXt" || chunk_type == b"iTXt" {
                 println!("Found text chunk");
                 println!("Text: {}", String::from_utf8_lossy(chunk_data));
             }
