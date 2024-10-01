@@ -17,6 +17,34 @@ impl imageFile {
         buf.read_to_end(&mut self.content);
     }
 
+    fn parse_ihdr_chunk(data: &[u8]) {
+        let width = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+        let height = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
+        let bit_depth = data[8];
+        let color_type = data[9];
+        let compression_method = data[10];
+        let filter_method = data[11];
+        let interlace_method = data[12];
+    
+        println!("Width: {}", width);
+        println!("Height: {}", height);
+        println!("Bit Depth: {}", bit_depth);
+        println!("Color Type: {}", color_type);
+        println!("Compression Method: {}", compression_method);
+        println!("Filter Method: {}", filter_method);
+        println!("Interlace Method: {}", interlace_method);
+    }
+
+    fn parse_ztxt_chunk(data: &[u8]) {
+        let null_pos = data.iter().position(|&b| b == 0).unwrap();
+        let keyword = &data[..null_pos];
+        let compression_method = data[null_pos + 1];
+        let compressed_text = &data[null_pos + 2..];
+
+        println!("Compressed Text: {}", String::from_utf8_lossy(compressed_text));
+        println!("Compression Method: {}", compression_method);
+    }
+
     fn exract_png_metadata(&mut self){
         let mut i = 8; // Skip the magic number
         let mut buf: &mut [u8] = &mut [0; 4];
@@ -28,7 +56,6 @@ impl imageFile {
         while i < self.len() {
             buf = &mut self.content[i..i+4];
             chunk_length = read_u32(buf, BigEndian).unwrap();
-            println!("chunk length: {}", chunk_length);
             i += 4;
             chunk_type = &self.content[i..i+4];
             i += 4;
@@ -36,12 +63,20 @@ impl imageFile {
             i += chunk_length as usize;
             chunk_crc = &self.content[i..i+4];
             i += 4;
-            if chunk_type == b"tEXt" || chunk_type == b"zTXt" || chunk_type == b"iTXt" {
-                println!("Found text chunk");
-                println!("Text: {}", String::from_utf8_lossy(chunk_data));
+            if chunk_type == b"IDAT" {
+            }
+            else if chunk_type == b"IHDR" {
+                println!("Found IHDR chunk");
+                imageFile::parse_ihdr_chunk(chunk_data);
+            }
+            else if chunk_type == b"zTXt" {
+                println!("Found zTXt chunk");
+                imageFile::parse_ztxt_chunk(chunk_data);
             }
             else {
-                println!("Chunk type: {}", String::from_utf8_lossy(chunk_type));
+                println!("Found {} chunk", String::from_utf8_lossy(chunk_type));
+                println!("Length: {}", chunk_length);
+                // println!("Text: {}", String::from_utf8(chunk_data));
             }
         }
     }
