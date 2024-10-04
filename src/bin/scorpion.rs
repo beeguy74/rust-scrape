@@ -37,6 +37,46 @@ impl imageFile {
         println!("Interlace Method: {}", interlace_method);
     }
 
+
+    fn skip_endlines(data: &mut [u8], j: usize) -> usize {
+        let mut i = j;
+        let mut test_buf: &u8;
+        while data[i] != 0x0A && data[i] != 0x0D {
+            test_buf = &data[i];
+            i += 1;
+        }
+        i + 1
+    }
+
+    fn parse_exif(data: &mut [u8]) {
+        let mut i = 0;
+        let mut buf: &[u8] = &[0; 2];
+        let mut tag: u32;
+        let mut tag_type: u32;
+        let mut tag_count: u32;
+        let mut tag_value: u32;
+        i = imageFile::skip_endlines(data, i);
+        i = imageFile::skip_endlines(data, i);
+        while i < data.len() {
+            buf = &data[i..i+2];
+            tag = read_u32(buf, BigEndian).unwrap();
+            i += 2;
+            buf = &data[i..i+2];
+            tag_type = read_u32(buf, BigEndian).unwrap();
+            i += 2;
+            buf = &data[i..i+4];
+            tag_count = read_u32(buf, BigEndian).unwrap();
+            i += 4;
+            buf = &data[i..i+4];
+            tag_value = read_u32(buf, BigEndian).unwrap();
+            i += 4;
+            println!("Tag: {}", tag);
+            println!("Tag Type: {}", tag_type);
+            println!("Tag Count: {}", tag_count);
+            println!("Tag Value: {}", tag_value);
+        }
+    }
+
     fn parse_ztxt_chunk(data: &[u8]) {
         let null_pos = data.iter().position(|&b| b == 0).unwrap();
         let keyword = &data[..null_pos];
@@ -45,10 +85,13 @@ impl imageFile {
 
         if compression_method == 0 {
             let mut decoder = ZlibDecoder::new(compressed_text);
-            let mut decompressed_text = String::new();
-            decoder.read_to_string(&mut decompressed_text).unwrap();
+            let mut decompressed_text = Vec::new();
+            decoder.read_to_end(&mut decompressed_text).unwrap();
             println!("Keyword: {}", String::from_utf8_lossy(keyword));
-            println!("Decompressed Text: {:?}", decompressed_text);
+            let mut i = imageFile::skip_endlines(&mut decompressed_text, 0);
+            i = imageFile::skip_endlines(&mut decompressed_text, i);
+            println!("Text: {}", String::from_utf8_lossy(&mut decompressed_text[..i]));
+            // imageFile::parse_exif(&mut decompressed_text);
 
             // let key_value_map = imageFile::parse_hex_key_value(&decompressed_text);
             // for (key, value) in key_value_map {
