@@ -1,6 +1,8 @@
 use std::{env, io::Read, result};
 use hex;
 use endianness::{read_u32, ByteOrder::BigEndian};
+use flate2::read::ZlibDecoder;
+use std::collections::HashMap;
 
 
 struct imageFile {
@@ -41,8 +43,33 @@ impl imageFile {
         let compression_method = data[null_pos + 1];
         let compressed_text = &data[null_pos + 2..];
 
-        println!("Compressed Text: {}", String::from_utf8_lossy(compressed_text));
-        println!("Compression Method: {}", compression_method);
+        if compression_method == 0 {
+            let mut decoder = ZlibDecoder::new(compressed_text);
+            let mut decompressed_text = String::new();
+            decoder.read_to_string(&mut decompressed_text).unwrap();
+            println!("Keyword: {}", String::from_utf8_lossy(keyword));
+            println!("Decompressed Text: {:?}", decompressed_text);
+
+            // let key_value_map = imageFile::parse_hex_key_value(&decompressed_text);
+            // for (key, value) in key_value_map {
+            //     println!("{}: {}", key, value);
+            // }
+        } else {
+            println!("Unknown compression method: {}", compression_method);
+        }
+    }
+
+    fn parse_hex_key_value(data: &String) -> HashMap<String, String> {
+        let mut map = HashMap::new();
+        let lines: Vec<&str> = data.split('\n').collect();
+    
+        for line in lines {
+            if let Some((key, value)) = line.split_once(':') {
+                map.insert(key.trim().to_string(), value.trim().to_string());
+            }
+        }
+    
+        map
     }
 
     fn exract_png_metadata(&mut self){
