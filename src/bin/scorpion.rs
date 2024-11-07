@@ -1,4 +1,4 @@
-use std::{env, io::Read };
+use std::{env, io::Read, path };
 use hex;
 use endianness::{read_u32, ByteOrder::BigEndian};
 use flate2::read::ZlibDecoder;
@@ -215,12 +215,15 @@ fn launcher(image: &mut ImageFile) {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = env::args();
-    if args.len() != 2 {
-        println!("Usage: {} <file>", args.nth(0).unwrap());
+    let mut image: ImageFile;
+    if args.len() < 2 {
+        println!("Usage: {} <file> ... <file10>", args.nth(0).unwrap());
         return Err("Invalid number of arguments".into());
     }
-    let mut image = open_file(args.nth(1).unwrap().as_str())?;
-    launcher(&mut image);
-
+    for arg in args.skip(1) {
+        image = open_file(arg.as_str())?;
+        launcher(&mut image);
+    }
+    
     Ok(())
 }
