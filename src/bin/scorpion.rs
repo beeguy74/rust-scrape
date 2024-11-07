@@ -1,22 +1,22 @@
-use std::{env, io::Read, result};
+use std::{env, io::Read };
 use hex;
 use endianness::{read_u32, ByteOrder::BigEndian};
 use flate2::read::ZlibDecoder;
 use std::collections::HashMap;
 
 
-struct imageFile {
+struct ImageFile {
     content: Vec<u8>,
     extension: String,
 }
 
-impl imageFile {
+impl ImageFile {
     fn len(&self) -> usize {
         self.content.len()
     }
 
     fn set_content(&mut self, buf: &mut std::io::BufReader<std::fs::File>) {
-        buf.read_to_end(&mut self.content);
+        let _ = buf.read_to_end(&mut self.content);
     }
 
     fn parse_ihdr_chunk(data: &[u8]) {
@@ -40,9 +40,7 @@ impl imageFile {
 
     fn skip_endlines(data: &mut [u8], j: usize) -> usize {
         let mut i = j;
-        let mut test_buf: &u8;
         while data[i] != 0x0A && data[i] != 0x0D {
-            test_buf = &data[i];
             i += 1;
         }
         i + 1
@@ -50,13 +48,13 @@ impl imageFile {
 
     fn parse_exif(data: &mut [u8]) {
         let mut i = 0;
-        let mut buf: &[u8] = &[0; 2];
+        let mut buf: &[u8];
         let mut tag: u32;
         let mut tag_type: u32;
         let mut tag_count: u32;
         let mut tag_value: u32;
-        i = imageFile::skip_endlines(data, i);
-        i = imageFile::skip_endlines(data, i);
+        i = ImageFile::skip_endlines(data, i);
+        i = ImageFile::skip_endlines(data, i);
         while i < data.len() {
             buf = &data[i..i+2];
             tag = read_u32(buf, BigEndian).unwrap();
@@ -88,12 +86,12 @@ impl imageFile {
             let mut decompressed_text = Vec::new();
             decoder.read_to_end(&mut decompressed_text).unwrap();
             println!("Keyword: {}", String::from_utf8_lossy(keyword));
-            let mut i = imageFile::skip_endlines(&mut decompressed_text, 0);
-            i = imageFile::skip_endlines(&mut decompressed_text, i);
+            let mut i = ImageFile::skip_endlines(&mut decompressed_text, 0);
+            i = ImageFile::skip_endlines(&mut decompressed_text, i);
             println!("Text: {}", String::from_utf8_lossy(&mut decompressed_text[..i]));
-            // imageFile::parse_exif(&mut decompressed_text);
+            // ImageFile::parse_exif(&mut decompressed_text);
 
-            // let key_value_map = imageFile::parse_hex_key_value(&decompressed_text);
+            // let key_value_map = ImageFile::parse_hex_key_value(&decompressed_text);
             // for (key, value) in key_value_map {
             //     println!("{}: {}", key, value);
             // }
@@ -117,11 +115,11 @@ impl imageFile {
 
     fn exract_png_metadata(&mut self){
         let mut i = 8; // Skip the magic number
-        let mut buf: &mut [u8] = &mut [0; 4];
-        let mut chunk_length = 0;
+        let mut buf: &mut [u8];
+        let mut chunk_length: u32;
         let mut chunk_type: &[u8];
         let mut chunk_data: &[u8];
-        let mut chunk_crc: &[u8];
+        // let mut chunk_crc: &[u8];
         println!("LEN of png: {}", self.len());
         while i < self.len() {
             buf = &mut self.content[i..i+4];
@@ -131,32 +129,42 @@ impl imageFile {
             i += 4;
             chunk_data = &self.content[i..i+chunk_length as usize];
             i += chunk_length as usize;
-            chunk_crc = &self.content[i..i+4];
+            // chunk_crc = &self.content[i..i+4];
             i += 4;
             if chunk_type == b"IDAT" {
+                // println!("CRC: {}", hex::encode(chunk_crc));
             }
             else if chunk_type == b"IHDR" {
                 println!("Found IHDR chunk");
-                imageFile::parse_ihdr_chunk(chunk_data);
+                ImageFile::parse_ihdr_chunk(chunk_data);
             }
             else if chunk_type == b"zTXt" {
                 println!("Found zTXt chunk");
-                imageFile::parse_ztxt_chunk(chunk_data);
+                ImageFile::parse_ztxt_chunk(chunk_data);
+            }
+            else if chunk_type == b"tIME" {
+                println!("Found tIME chunk");
+                let year = u16::from_be_bytes([chunk_data[0], chunk_data[1]]);
+                let month = chunk_data[2];
+                let day = chunk_data[3];
+                let hour = chunk_data[4];
+                let minute = chunk_data[5];
+                let second = chunk_data[6];
+                println!("Last Modification Time: {}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second);
             }
             else {
                 println!("Found {} chunk", String::from_utf8_lossy(chunk_type));
                 println!("Length: {}", chunk_length);
-                // println!("Text: {}", String::from_utf8(chunk_data));
             }
         }
     }
 }
 
 
-fn open_file(file_path: &str) -> Result<imageFile, Box<dyn std::error::Error>> {
+fn open_file(file_path: &str) -> Result<ImageFile, Box<dyn std::error::Error>> {
     let file = std::fs::File::open(file_path)?;
     let mut buf_reader = std::io::BufReader::new(file);
-    let mut result = imageFile {
+    let mut result = ImageFile {
         content: Vec::new(),
         extension: file_path.split('.').last().unwrap().to_string(),
     };
@@ -165,7 +173,7 @@ fn open_file(file_path: &str) -> Result<imageFile, Box<dyn std::error::Error>> {
 }
 
 
-fn launcher(image: &mut imageFile) {
+fn launcher(image: &mut ImageFile) {
     let hex_content = hex::encode(&image.content);
     let magic_number = &hex_content[0..8];
     println!("Magic Number: {}", magic_number);
