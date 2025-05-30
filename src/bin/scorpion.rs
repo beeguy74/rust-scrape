@@ -1,26 +1,170 @@
-use std::{env, io::Read, result};
+use std::{env, io::Read, path };
 use hex;
+use endianness::{read_u32, ByteOrder::BigEndian};
+use flate2::read::ZlibDecoder;
+use std::collections::HashMap;
 
 
-struct imageFile {
+struct ImageFile {
     content: Vec<u8>,
     extension: String,
 }
 
-impl imageFile {
+impl ImageFile {
     fn len(&self) -> usize {
         self.content.len()
     }
 
     fn set_content(&mut self, buf: &mut std::io::BufReader<std::fs::File>) {
-        buf.read_to_end(&mut self.content);
+        let _ = buf.read_to_end(&mut self.content);
+    }
+
+    fn parse_ihdr_chunk(data: &[u8]) {
+        let width = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+        let height = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
+        let bit_depth = data[8];
+        let color_type = data[9];
+        let compression_method = data[10];
+        let filter_method = data[11];
+        let interlace_method = data[12];
+    
+        println!("Width: {}", width);
+        println!("Height: {}", height);
+        println!("Bit Depth: {}", bit_depth);
+        println!("Color Type: {}", color_type);
+        println!("Compression Method: {}", compression_method);
+        println!("Filter Method: {}", filter_method);
+        println!("Interlace Method: {}", interlace_method);
+    }
+
+
+    fn skip_endlines(data: &mut [u8], j: usize) -> usize {
+        let mut i = j;
+        while data[i] != 0x0A && data[i] != 0x0D {
+            i += 1;
+        }
+        i + 1
+    }
+
+    fn parse_exif(data: &mut [u8]) {
+        let mut i = 0;
+        let mut buf: &[u8];
+        let mut tag: u32;
+        let mut tag_type: u32;
+        let mut tag_count: u32;
+        let mut tag_value: u32;
+        i = ImageFile::skip_endlines(data, i);
+        i = ImageFile::skip_endlines(data, i);
+        while i < data.len() {
+            buf = &data[i..i+2];
+            tag = read_u32(buf, BigEndian).unwrap();
+            i += 2;
+            buf = &data[i..i+2];
+            tag_type = read_u32(buf, BigEndian).unwrap();
+            i += 2;
+            buf = &data[i..i+4];
+            tag_count = read_u32(buf, BigEndian).unwrap();
+            i += 4;
+            buf = &data[i..i+4];
+            tag_value = read_u32(buf, BigEndian).unwrap();
+            i += 4;
+            println!("Tag: {}", tag);
+            println!("Tag Type: {}", tag_type);
+            println!("Tag Count: {}", tag_count);
+            println!("Tag Value: {}", tag_value);
+        }
+    }
+
+    fn parse_ztxt_chunk(data: &[u8]) {
+        let null_pos = data.iter().position(|&b| b == 0).unwrap();
+        let keyword = &data[..null_pos];
+        let compression_method = data[null_pos + 1];
+        let compressed_text = &data[null_pos + 2..];
+
+        if compression_method == 0 {
+            let mut decoder = ZlibDecoder::new(compressed_text);
+            let mut decompressed_text = Vec::new();
+            decoder.read_to_end(&mut decompressed_text).unwrap();
+            println!("Keyword: {}", String::from_utf8_lossy(keyword));
+            let mut i = ImageFile::skip_endlines(&mut decompressed_text, 0);
+            i = ImageFile::skip_endlines(&mut decompressed_text, i);
+            println!("Text: {}", String::from_utf8_lossy(&mut decompressed_text[..i]));
+            // ImageFile::parse_exif(&mut decompressed_text);
+
+            // let key_value_map = ImageFile::parse_hex_key_value(&decompressed_text);
+            // for (key, value) in key_value_map {
+            //     println!("{}: {}", key, value);
+            // }
+        } else {
+            println!("Unknown compression method: {}", compression_method);
+        }
+    }
+
+    fn parse_hex_key_value(data: &String) -> HashMap<String, String> {
+        let mut map = HashMap::new();
+        let lines: Vec<&str> = data.split('\n').collect();
+    
+        for line in lines {
+            if let Some((key, value)) = line.split_once(':') {
+                map.insert(key.trim().to_string(), value.trim().to_string());
+            }
+        }
+    
+        map
+    }
+
+    fn exract_png_metadata(&mut self){
+        let mut i = 8; // Skip the magic number
+        let mut buf: &mut [u8];
+        let mut chunk_length: u32;
+        let mut chunk_type: &[u8];
+        let mut chunk_data: &[u8];
+        // let mut chunk_crc: &[u8];
+        println!("LEN of png: {}", self.len());
+        while i < self.len() {
+            buf = &mut self.content[i..i+4];
+            chunk_length = read_u32(buf, BigEndian).unwrap();
+            i += 4;
+            chunk_type = &self.content[i..i+4];
+            i += 4;
+            chunk_data = &self.content[i..i+chunk_length as usize];
+            i += chunk_length as usize;
+            // chunk_crc = &self.content[i..i+4];
+            i += 4;
+            if chunk_type == b"IDAT" {
+                // println!("CRC: {}", hex::encode(chunk_crc));
+            }
+            else if chunk_type == b"IHDR" {
+                println!("Found IHDR chunk");
+                ImageFile::parse_ihdr_chunk(chunk_data);
+            }
+            else if chunk_type == b"zTXt" {
+                println!("Found zTXt chunk");
+                ImageFile::parse_ztxt_chunk(chunk_data);
+            }
+            else if chunk_type == b"tIME" {
+                println!("Found tIME chunk");
+                let year = u16::from_be_bytes([chunk_data[0], chunk_data[1]]);
+                let month = chunk_data[2];
+                let day = chunk_data[3];
+                let hour = chunk_data[4];
+                let minute = chunk_data[5];
+                let second = chunk_data[6];
+                println!("Last Modification Time: {}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second);
+            }
+            else {
+                println!("Found {} chunk", String::from_utf8_lossy(chunk_type));
+                println!("Length: {}", chunk_length);
+            }
+        }
     }
 }
 
-fn open_file(file_path: &str) -> Result<imageFile, Box<dyn std::error::Error>> {
+
+fn open_file(file_path: &str) -> Result<ImageFile, Box<dyn std::error::Error>> {
     let file = std::fs::File::open(file_path)?;
     let mut buf_reader = std::io::BufReader::new(file);
-    let mut result = imageFile {
+    let mut result = ImageFile {
         content: Vec::new(),
         extension: file_path.split('.').last().unwrap().to_string(),
     };
@@ -28,18 +172,58 @@ fn open_file(file_path: &str) -> Result<imageFile, Box<dyn std::error::Error>> {
     Ok(result)
 }
 
+
+fn launcher(image: &mut ImageFile) {
+    let hex_content = hex::encode(&image.content);
+    let magic_number = &hex_content[0..8];
+    println!("Magic Number: {}", magic_number);
+    match image.extension.as_str() {
+        "png" => {
+            if magic_number == "89504e47" {
+                println!("File is a PNG");
+                image.exract_png_metadata();
+            } else {
+                println!("File is not a PNG");
+            }
+        }
+        "jpg" | "jpeg" => {
+            if magic_number == "ffd8ffe0" {
+                println!("File is a JPEG");
+            } else {
+                println!("File is not a JPEG");
+            }
+        }
+        "gif" => {
+            if magic_number == "47494638" {
+                println!("File is a GIF");
+            } else {
+                println!("File is not a GIF");
+            }
+        }
+        "bmp" => {
+            if magic_number == "424d" {
+                println!("File is a BMP");
+            } else {
+                println!("File is not a BMP");
+            }
+        }
+        _ => {
+            println!("File extension not supported");
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = env::args();
-    if args.len() != 2 {
-        println!("Usage: {} <file>", args.nth(0).unwrap());
+    let mut image: ImageFile;
+    if args.len() < 2 {
+        println!("Usage: {} <file> ... <file10>", args.nth(0).unwrap());
         return Err("Invalid number of arguments".into());
     }
-    let image = open_file(args.nth(1).unwrap().as_str())?;
-    // print first line of file
-    println!("Content: {:?}", &image.content[0..8]);
-    let hex_content = hex::encode(&image.content);
-    // Print the hexadecimal content
-    println!("Hex Content: {}", hex_content);
-
+    for arg in args.skip(1) {
+        image = open_file(arg.as_str())?;
+        launcher(&mut image);
+    }
+    
     Ok(())
 }
