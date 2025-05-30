@@ -76,8 +76,10 @@ fn rec_download(client: &Client ,url: &String, dir_path: &String, iteration: i32
     let mut args = modules::args::Args::default();
     args.parse_args()?;
     let client = reqwest::blocking::Client::new();
+    // TODO: check that args provided or print help
     println!("url: {}, dir_path: {}, deep: {}", args.url, args.dir_path, args.deep);
-
+    // TODO: check the existence of dir_path or create it
+    // TODO: check that url is alive  
     rec_download(&client, &args.url, &args.dir_path, args.deep);
 
     Ok(())
